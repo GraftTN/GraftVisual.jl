@@ -1,0 +1,7 @@
+name = "GraftVisual"
+uuid = "791908d2-64e8-4d2d-afff-5d61e685f6d8"
+authors = ["GraftVisual contributors"]
+version = "0.1.0"
+
+[deps]
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"

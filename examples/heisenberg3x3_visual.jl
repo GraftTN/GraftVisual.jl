@@ -22,9 +22,25 @@ function line(io, a, b; color="#334155", width=2, dash=false)
     println(io, "<line x1=\"$(a[1])\" y1=\"$(a[2])\" x2=\"$(b[1])\" y2=\"$(b[2])\" stroke=\"$color\" stroke-width=\"$width\" stroke-linecap=\"round\"$d/>")
 end
 
+# Dashed bezier arc drawn as short filled quads: ImageMagick's built-in SVG
+# rasterizer mishandles <path> (fills it black / drops it), so avoid paths.
 function curve(io, a, b; color="#dc2626")
-    midy = min(a[2], b[2]) - 28 - abs(a[1] - b[1]) / 14
-    println(io, "<path d=\"M $(pt(a)) C $(a[1]),$midy $(b[1]),$midy $(pt(b))\" fill=\"none\" stroke=\"$color\" stroke-width=\"3\" stroke-dasharray=\"9 5\" stroke-linecap=\"round\" opacity=\"0.82\"/>")
+    midy = max(a[2], b[2]) + 34 + abs(a[1] - b[1]) / 2.6
+    n = 24
+    pts = map(0:n) do k
+        t = k / n
+        u = 1 - t
+        (u^3 * a[1] + 3u^2 * t * a[1] + 3u * t^2 * b[1] + t^3 * b[1],
+         u^3 * a[2] + 3u^2 * t * midy + 3u * t^2 * midy + t^3 * b[2])
+    end
+    r1(x) = round(x; digits=1)
+    for k in 1:n
+        k % 3 == 0 && continue   # gap, so the arc reads as dashed
+        (x1, y1), (x2, y2) = pts[k], pts[k+1]
+        len = max(hypot(x2 - x1, y2 - y1), 1e-9)
+        nx, ny = -(y2 - y1) / len * 1.1, (x2 - x1) / len * 1.1
+        println(io, "<polygon points=\"$(r1(x1 + nx)),$(r1(y1 + ny)) $(r1(x2 + nx)),$(r1(y2 + ny)) $(r1(x2 - nx)),$(r1(y2 - ny)) $(r1(x1 - nx)),$(r1(y1 - ny))\" fill=\"$color\" opacity=\"0.75\"/>")
+    end
 end
 
 function node(io, p, label; physical=false)
@@ -92,12 +108,17 @@ open(svg_path, "w") do io
     println(io, raw"""<style>text{font-family:Helvetica,Arial,sans-serif;fill:#0f172a}</style>""")
     println(io, raw"""<rect width="1180" height="560" fill="white"/>""")
     println(io, raw"""<text x="590" y="42" text-anchor="middle" font-size="24" font-weight="700">3x3 Heisenberg open-boundary visual check</text>""")
-    println(io, raw"""<text x="590" y="66" text-anchor="middle" font-size="13" fill="#475569">solid lines: tree/lattice edges; dashed red lines: Heisenberg nearest-neighbor bonds overlaid on tree leaves</text>""")
+    println(io, raw"""<text x="590" y="66" text-anchor="middle" font-size="13" fill="#475569">solid lines: tree/lattice edges; dashed red arcs below the leaves: Heisenberg nearest-neighbor bonds (arc height grows with leaf distance)</text>""")
 
     println(io, raw"""<text x="125" y="112" text-anchor="middle" font-size="18" font-weight="700">model graph</text>""")
     lattice = Dict(sites[x + 1 + 3y] => (55 + 70x, 165 + 70y) for y in 0:2 for x in 0:2)
     for (i, j) in bonds
-        line(io, lattice[sites[i]], lattice[sites[j]]; color="#2563eb", width=2.4)
+        # filled quad instead of <line>: the ImageMagick rasterizer drops
+        # stroke colors on lines but honors polygon fills
+        a, b = lattice[sites[i]], lattice[sites[j]]
+        len = max(hypot(b[1] - a[1], b[2] - a[2]), 1e-9)
+        nx, ny = -(b[2] - a[2]) / len * 1.2, (b[1] - a[1]) / len * 1.2
+        println(io, "<polygon points=\"$(a[1]+nx),$(a[2]+ny) $(b[1]+nx),$(b[2]+ny) $(b[1]-nx),$(b[2]-ny) $(a[1]-nx),$(a[2]-ny)\" fill=\"#2563eb\"/>")
     end
     for s in sites
         node(io, lattice[s], s; physical=true)
