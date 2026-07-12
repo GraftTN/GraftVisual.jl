@@ -1,6 +1,7 @@
 name = "GraftVisual"
 uuid = "791908d2-64e8-4d2d-afff-5d61e685f6d8"
-authors = ["GraftVisual contributors"]
+authors = ["weiyiguo9"]
+license = "Apache-2.0"
 version = "0.1.0"
 
 [deps]
